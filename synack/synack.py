@@ -401,37 +401,50 @@ class synack:
         category = self.getCategory(codename)
         orgID = self.__getOrgID(codename)
         slug = self.getTargetID(codename)
-        if category.lower() == "web application":
-            scopeURL = f"https://platform.synack.com/api/asset/v2/assets?organizationUid[]={orgID}&listingUid[]={slug}"
-            inScopeRules = []
-            oosRules = []
+        scopeURL = f"https://platform.synack.com/api/asset/v2/assets?organizationUid[]={orgID}&listingUid[]={slug}"
+        try:
             response = self.try_requests("GET", scopeURL, 10)
-            jsonResponse = response.json()
+        except requests.exceptions.RequestException as e:
+            raise SystemExit(e)
+        jsonResponse = response.json()
+        inScopeRules = []
+        oosRules = []
+
+        if category.lower() == "web application":
+
             for scopeListing in jsonResponse:
 
                 listingType = scopeListing["listings"][0]["scope"]
+                active = scopeListing["active"]
 
                 for scopeTuple in self.parseScope(scopeListing["scopeRules"]):
                     scopeType = scopeTuple[0]
                     scopeDict = scopeTuple[1]
 
-                    if scopeType == "in" and listingType == "in":
+                    if scopeType == "in" and listingType == "in" and active:
                         inScopeRules.append(scopeDict)
                     else:
                         oosRules.append(scopeDict)
 
-            return (list(inScopeRules), list(oosRules))
         if category.lower() == "host":
-            scopeURL = "https://platform.synack.com/api/targets/" + slug + "/cidrs?page=all"
-            cidrs = []
-            try:
-                response = self.try_requests("GET", scopeURL, 10)
-            except requests.exceptions.RequestException as e:
-                raise SystemExit(e)
-            temp = json.dumps(response.json()["cidrs"]).replace("[", "").replace("]", "").replace('"', "").replace(", ", "\n").split("\n")
-            cidrs.extend(temp)
-            cidrs = list(set(cidrs))
-            return cidrs
+
+            for scopeListing in jsonResponse:
+                listingType = scopeListing["listings"][0]["scope"]
+                active = scopeListing["active"]
+                assetType = scopeListing["assetType"]
+                if active and assetType == "host":
+
+                    cidr = scopeListing["host"].get("cidr", None)
+                    ipaddr = scopeListing["host"].get("ipAddress", None)
+
+                    if ipaddr:
+                        cidr = f"{ipaddr}/32"
+
+                    if listingType == "in":
+                        inScopeRules.append(cidr)
+                    else:
+                        oosRules.append(cidr)
+        return (list(inScopeRules), list(oosRules))
 
     ########################################
     ## This converts CIDR list to IP list ##
@@ -623,7 +636,7 @@ class synack:
         for i in range(len(unregistered_slugs)):
             codename = self.getCodenameFromSlug(unregistered_slugs[i])
             if codename == None:
-                print("Error registerring " + unregistered_slugs[i] + "!")
+                print("Error registering " + unregistered_slugs[i] + "!")
             else:
                 print("Successfully registered " + str(codename))
 
