@@ -466,7 +466,7 @@ class synack:
         response = self.try_requests("GET", self.url_assessments, 10)
         jsonResponse = response.json()
         for i in range(len(jsonResponse)):
-            if jsonResponse[i]["written_assessment"]["passed"] == True:
+            if jsonResponse[i]["passed"] == True:
                 self.assessments.append(jsonResponse[i]["category_name"])
             i += 1
 
